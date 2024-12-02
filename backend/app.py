@@ -1,58 +1,50 @@
-from flask import Flask, jsonify
-from flask_cors import CORS
+from flask import Flask, jsonify, send_from_directory
 from pymongo import MongoClient
 import os
+from flask_cors import CORS
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Initialize Flask app
-app = Flask(__name__)
-CORS(app)  # Enable CORS to allow frontend to access backend
+app = Flask(__name__, static_folder='../frontend')  # Set frontend folder for static files
+CORS(app, resources={r"/*": {"origins": "*"}})  # Enable CORS to allow frontend access
+
 
 # MongoDB connection setup
-# Replace this with your MongoDB connection string
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://devarkayswami:9qfn7pFh1uQCHM37@cluster0.efjte.mongodb.net/')
+# Replace with your MongoDB connection string (using mongodb:// if not using SRV)
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://devarkayswami:9qfn7pFh1uQCHM37@localhost:27017/')
 client = MongoClient(MONGO_URI)
 db = client['stm']  # Replace with your database name
 collection = db['temperature']  # Replace with your collection name
 
+
+@app.route('/')
+def serve_index():
+    # Serve the main HTML file (index.html)
+    return send_from_directory(app.static_folder, 'index.html')
+
+@app.route('/<path:path>')
+def serve_static_files(path):
+    # Serve static files like JS and CSS
+    return send_from_directory(app.static_folder, path)
+
 @app.route('/get-sensor-data', methods=['GET'])
 def get_sensor_data():
     try:
-        # Fetch all sensor data from the collection (no limit, or limit to 100 most recent records)
-        data = collection.find().sort('timestamp',-1).limit(100)
-  # Sort by timestamp in descending order (most recent first)
+        # Fetch all sensor data from the collection (most recent 100 records)
+        data = collection.find().sort('timestamp', -1).limit(100)
         
-        # If you want to limit to the latest 100 records, use this:
-        # data = collection.find().sort('timestamp', -1).limit(100)
-
         # Prepare the data to send as JSON
-        sensor_data = [{'timestamp': record['timestamp'], 'temperature': record['temperature']} for record in data]
+        sensor_data = [{'timestamp': record.get('timestamp'), 'temperature': record.get('temperature')} for record in data]
         
         # Return the data as JSON
         return jsonify(sensor_data)
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/get-collections', methods=['GET'])
-def get_collections():
-    try:
-        # Get a list of collection names from MongoDB
-        collections = db.list_collection_names()
-        return jsonify(collections)  # Return the list of collections as JSON
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/get-data/<collection_name>', methods=['GET'])
-def get_data(collection_name):
-    try:
-        # Fetch data from the specified collection
-        collection = db[collection_name]
-        data = collection.find().sort('timestamp', -1)  # Sort by timestamp
-        sensor_data = [{'timestamp': record['timestamp'], 'temperature': record['temperature']} for record in data]
-        return jsonify(sensor_data)
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
+        # Log error details
+        app.logger.error(f"Error occurred: {e}")
+        return jsonify({"error": "An internal error occurred while fetching sensor data."}), 500
 
 if __name__ == '__main__':
     # Run Flask app on localhost, port 5000

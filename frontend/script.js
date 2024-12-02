@@ -3,10 +3,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var sensorGraph = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: [],  // Empty at first, to be populated with timestamps
+            labels: [],
             datasets: [{
                 label: 'Temperature',
-                data: [],  // Empty at first, to be populated with temperature data
+                data: [],
                 borderColor: '#00D1FF',
                 fill: false,
                 borderWidth: 1.5
@@ -23,43 +23,73 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Function to fetch sensor data from MongoDB via Flask
     async function fetchSensorData() {
         try {
-            // Fetch data from Flask API endpoint
-            const response = await fetch('http://localhost:5000/get-sensor-data');  // Replace with your Flask server URL if deployed
+            const response = await fetch('http://localhost:5000/get-sensor-data');
             const data = await response.json();
-
-            // If data is fetched successfully, process it
             if (data && Array.isArray(data)) {
-                // Extract timestamps and temperatures from the fetched data
                 const labels = data.map(entry => new Date(entry.timestamp).toLocaleTimeString());
                 const temperatures = data.map(entry => entry.temperature);
-
-                // Update the graph with the fetched data
                 sensorGraph.data.labels = labels;
                 sensorGraph.data.datasets[0].data = temperatures;
-                sensorGraph.update(); // Update the graph once with the full dataset
+                sensorGraph.update();
             }
         } catch (error) {
             console.error("Error fetching sensor data:", error);
         }
     }
 
-    // Fetch data once when the page loads
     fetchSensorData();
-});
 
+    async function fetchWeather() {
+        const apiKey = 'YOUR_OPENWEATHERMAP_API_KEY';  // Replace with your actual API key
+        const city = 'Pune';
 
+        try {
+            const response = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`);
+            if (!response.ok) {
+                throw new Error('Weather data could not be fetched.');
+            }
+            const weatherData = await response.json();
+            document.getElementById('weather-info').innerHTML = `
+                <h3>Weather in ${weatherData.name}</h3>
+                <p>Temperature: ${weatherData.main.temp} °C</p>
+                <p>Humidity: ${weatherData.main.humidity} %</p>
+                <p>Weather: ${weatherData.weather[0].description}</p>
+            `;
+        } catch (error) {
+            console.error('Error fetching weather data:', error);
+        }
+    }
 
-let center = [73.856743, 18.520430]
-var map = tt.map({
+    fetchWeather();
 
-    key: "TBSH4uA4KmIwIuo5q7MHKrwM2Ac5nuLM",
-    center: center,
-    container: "map",
-    zoom: 13
-})
-map.on('load', () => {
-    new tt.Marker().setLngLat(center).addTo(map)
+    async function fetchNodeData() {
+        try {
+            const response = await fetch("https://api.thingspeak.com/channels/2770751/feeds.json?api_key=JDQUOS7HWNR94BCT&results=2");
+            const data = await response.json();
+            if (data && data.feeds) {
+                const nodeDataHtml = data.feeds.map(feed => `
+                    <p>Timestamp: ${feed.created_at}</p>
+                    <p>Field 1: ${feed.field1}</p>
+                `).join('<hr>');
+                document.getElementById('node-data').innerHTML = nodeDataHtml;
+            }
+        } catch (error) {
+            console.error('Error fetching node data:', error);
+        }
+    }
+
+    fetchNodeData();
+
+    let center = [73.856743, 18.520430];
+    var map = tt.map({
+        key: "YOUR_TOMTOM_API_KEY",  // Replace with your actual TomTom API key
+        center: center,
+        container: "map",
+        zoom: 13
+    });
+    map.on('load', () => {
+        new tt.Marker().setLngLat(center).addTo(map);
+    });
 });
